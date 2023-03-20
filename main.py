@@ -1,6 +1,6 @@
 import os
 import glob
-import youtube_dl
+import yt_dlp
 import time
 import whisper
 from dotenv import load_dotenv
@@ -160,6 +160,9 @@ def transcribeAudio() -> None:
             split_audio_file(audio_file_path, output_file_path, start_time, end_time)
         print("Audio file split into segments in {:.2f} seconds".format(time.time() - start_time))
 
+        # Remove the original audio file
+        os.remove(audio_file_path)
+
 def write_sentences_to_file(sentences: List[Tuple[str, float, float]], output_file_path: str) -> None:
     with open(output_file_path, 'w') as f:
         for i, sentence in enumerate(sentences):
@@ -185,9 +188,9 @@ def extractAudioFromYouTube(youtubeVideoURL: str) -> None:
         }]
     }
     try:
-        with youtube_dl.YoutubeDL(audioDownloadOptions) as youtubeDownloader:
+        with yt_dlp.YoutubeDL(audioDownloadOptions) as youtubeDownloader:
             youtubeDownloader.download([youtubeVideoURL])
-    except youtube_dl.utils.DownloadError as e:
+    except yt_dlp.utils.DownloadError as e:
         print(f"Error: {str(e)}")
 
 def main():
