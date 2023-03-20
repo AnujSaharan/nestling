@@ -171,9 +171,10 @@ def write_sentences_to_file(sentences: List[Tuple[str, float, float]], output_fi
             f.write(f"wavs/{output_file_name}|{sentence_text}\n")
 
 def split_audio_file(input_file_path: str, output_file_path: str, start_time: float, end_time: float) -> None:
-    audio = AudioSegment.from_wav(input_file_path)
+    buffer_duration_ms = 150
+    audio = AudioSegment.from_file(input_file_path, format='wav')
     start_ms = int(start_time * 1000)
-    end_ms = int(end_time * 1000)
+    end_ms = int(end_time * 1000) + buffer_duration_ms
     segment = audio[start_ms:end_ms]
     segment.export(output_file_path, format="wav")
   
