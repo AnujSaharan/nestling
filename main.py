@@ -75,7 +75,8 @@ def diarize_audio(audio_file_path: str, mode: str = "concatenate") -> None:
 
         if speaker not in segments:
             segments[speaker] = []
-        if duration_s >= 4.0 and duration_s <= 15.0:
+
+        if duration_s >= 3.0:  # Ensure the segment is at least 3 seconds long
             segments[speaker].append((start_time_ms, end_time_ms))
 
     end = time.time()
@@ -100,67 +101,45 @@ def diarize_audio(audio_file_path: str, mode: str = "concatenate") -> None:
     print(f"Total duration of audio: {len(audio) / 1000:.2f} seconds")
 
 def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
-    source_text = result['text']
-    source_words = source_text.split()
-    current_sentence = ''
-    sentence_start_time = 0
-    sentence_end_time = 0
-    current_word_index = 0
-    sentences = []
     min_duration = 3.0
     max_duration = 15.0
-    merge_sentences = False
+    sentences = []
 
-    for seg in result['segments']:
-        seg_text = seg['text'].strip()
-        seg_words = seg_text.split()
+    def add_sentence(sentence, start_time, end_time):
+        duration = end_time - start_time
+        if duration < min_duration and sentences:
+            prev_sentence, prev_start_time, prev_end_time = sentences[-1]
+            combined_duration = end_time - prev_start_time
 
-        for seg_word in seg_words:
-            word_start_time, word_end_time = None, None
-            for wd in seg['words']:
-                if wd['word'].strip() == seg_word.strip():
-                    if sentence_end_time is None or wd['start'] > sentence_end_time:
-                        word_start_time, word_end_time = wd['start'], wd['end']
-                        break
-
-            if word_start_time is not None and word_end_time is not None:
-                if current_word_index == 0:
-                    sentence_start_time = word_start_time
-                current_word_index += 1
-                current_sentence += seg_word + ' '
-
-                if seg_word[-1] in ['.', '?', '!'] or current_word_index == len(source_words):
-                    sentence_end_time = word_end_time
-                    duration = sentence_end_time - sentence_start_time
-
-                    if duration <= max_duration:
-                        if duration < min_duration and sentences:
-                            prev_sentence, prev_start_time, prev_end_time = sentences.pop()
-                            combined_duration = sentence_end_time - prev_start_time
-
-                            if combined_duration <= max_duration:
-                                current_sentence = prev_sentence + ' ' + current_sentence
-                                sentence_start_time = prev_start_time
-                                merge_sentences = True
-
-                    if not merge_sentences:
-                        sentences.append((current_sentence.strip(), sentence_start_time, sentence_end_time))
-                    else:
-                        merge_sentences = False
-
-                    current_sentence = ''
-                    if current_word_index < len(source_words):
-                        sentence_start_time = word_end_time
+            if combined_duration <= max_duration:
+                sentence = prev_sentence + ' ' + sentence
+                start_time = prev_start_time
+                sentences[-1] = (sentence.strip(), start_time, end_time)
             else:
-                found_next_word = False
-                for i, upcoming_word in enumerate(source_words[current_word_index+1:]):
-                    if seg_word == upcoming_word:
-                        found_next_word = True
-                        current_word_index += i + 1
-                        break
+                if duration >= min_duration:
+                    sentences.append((sentence.strip(), start_time, end_time))
+        else:
+            if duration >= min_duration:
+                sentences.append((sentence.strip(), start_time, end_time))
 
-                if not found_next_word:
-                    current_sentence += seg_word + ' '
+    words = [(wd['word'].strip(), wd['start'], wd['end']) for seg in result['segments'] for wd in seg['words']]
+    current_sentence = ''
+    sentence_start_time = 0
+
+    for i, (word, start_time, end_time) in enumerate(words):
+        if i == 0:
+            sentence_start_time = start_time
+
+        current_sentence += word + ' '
+
+        is_end_of_sentence = re.search(r'[.?!]\s*$', current_sentence)
+        is_last_word = i == len(words) - 1
+
+        if is_end_of_sentence or is_last_word:
+            add_sentence(current_sentence, sentence_start_time, end_time)
+            current_sentence = ''
+            sentence_start_time = end_time
+
     return sentences
 
 def transcribe_speaker_file(audio_file_path: str) -> dict:
@@ -172,10 +151,6 @@ def transcribe_speaker_file(audio_file_path: str) -> dict:
 
     # Write result to file
     audio_file_name = os.path.splitext(os.path.basename(audio_file_path))[0]
-    result_file_path = os.path.join(audio_file_name + "_result.txt")
-    with open(result_file_path, "w", encoding="utf-8") as f:
-        f.write(str(result))
-
     return result
 
 def create_output_directories(audio_file_name: str) -> str:
@@ -184,7 +159,7 @@ def create_output_directories(audio_file_name: str) -> str:
     os.makedirs(os.path.join(output_dir, "wavs"), exist_ok=True)
     return output_dir
 
-def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, buffer_ms: int = 50) -> None:
+def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, buffer_ms: int = 100) -> None:
     print("Splitting audio file into segments based on sentences")
     audio = AudioSegment.from_file(audio_file_path, format='wav')
     for i, sentence in enumerate(sentences):
