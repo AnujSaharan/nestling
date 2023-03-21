@@ -1,5 +1,6 @@
 import os
 import glob
+import re
 import yt_dlp
 import time
 import whisper
@@ -9,12 +10,12 @@ from pyannote.audio import Pipeline
 from pyannote.core import Timeline
 from pydub import AudioSegment
 
-load_dotenv() # Load environment variables from .env
+load_dotenv()  # Load environment variables from .env
 
 def load_audio(audio_file_path: str) -> AudioSegment:
     return AudioSegment.from_wav(audio_file_path)
 
-def detect_overlapping_speech(audio_file_path: str) -> List:
+def detect_overlapping_speech(audio_file_path: str) -> Timeline:
     print("Detecting overlapping speech")
     start_time = time.time()
     pipeline = Pipeline.from_pretrained("pyannote/overlapped-speech-detection", use_auth_token=os.getenv('HUGGINGFACE_API_KEY'))
@@ -26,7 +27,7 @@ def detect_overlapping_speech(audio_file_path: str) -> List:
     print(f"Total overlapping duration: {overlapping_duration:.2f} seconds")
     return overlapping_segments
 
-def remove_overlapping_bits(audio: AudioSegment, overlapping_segments: List) -> AudioSegment:
+def remove_overlapping_bits(audio: AudioSegment, overlapping_segments: Timeline) -> AudioSegment:
     print("Removing overlapping speech")
     start_time = time.time()
     timeline = Timeline(overlapping_segments)
@@ -56,7 +57,7 @@ def remove_overlapping_bits(audio: AudioSegment, overlapping_segments: List) -> 
 def save_cleaned_audio(audio: AudioSegment, audio_file_path: str) -> None:
     audio.export(audio_file_path, format="wav")
 
-def diarizeAudio(audio_file_path: str, mode: str = "concatenate") -> None:
+def diarize_audio(audio_file_path: str, mode: str = "concatenate") -> None:
     audio = load_audio(audio_file_path)
     overlapping_segments = detect_overlapping_speech(audio_file_path)
     audio_without_overlap = remove_overlapping_bits(audio, overlapping_segments)
@@ -74,7 +75,7 @@ def diarizeAudio(audio_file_path: str, mode: str = "concatenate") -> None:
 
         if speaker not in segments:
             segments[speaker] = []
-        if duration_s >= 4.0:
+        if duration_s >= 4.0 and duration_s <= 15.0:
             segments[speaker].append((start_time_ms, end_time_ms))
 
     end = time.time()
@@ -107,100 +108,148 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
     current_word_index = 0
     sentences = []
     min_duration = 3.0
+    max_duration = 15.0
+    merge_sentences = False
 
     for seg in result['segments']:
         seg_text = seg['text'].strip()
         seg_words = seg_text.split()
 
         for seg_word in seg_words:
-            if seg_word == source_words[current_word_index]:
+            word_start_time, word_end_time = None, None
+            for wd in seg['words']:
+                if wd['word'].strip() == seg_word.strip():
+                    if sentence_end_time is None or wd['start'] > sentence_end_time:
+                        word_start_time, word_end_time = wd['start'], wd['end']
+                        break
+
+            if word_start_time is not None and word_end_time is not None:
                 if current_word_index == 0:
-                    sentence_start_time = seg['start']
+                    sentence_start_time = word_start_time
                 current_word_index += 1
                 current_sentence += seg_word + ' '
 
                 if seg_word[-1] in ['.', '?', '!'] or current_word_index == len(source_words):
-                    sentence_end_time = seg['end']
+                    sentence_end_time = word_end_time
                     duration = sentence_end_time - sentence_start_time
 
-                    if duration >= min_duration or len(sentences) == 0:
+                    if duration <= max_duration:
+                        if duration < min_duration and sentences:
+                            prev_sentence, prev_start_time, prev_end_time = sentences.pop()
+                            combined_duration = sentence_end_time - prev_start_time
+
+                            if combined_duration <= max_duration:
+                                current_sentence = prev_sentence + ' ' + current_sentence
+                                sentence_start_time = prev_start_time
+                                merge_sentences = True
+
+                    if not merge_sentences:
                         sentences.append((current_sentence.strip(), sentence_start_time, sentence_end_time))
                     else:
-                        merged_sentence, prev_start_time, prev_end_time = sentences[-1]
-                        merged_sentence = f"{merged_sentence} {current_sentence.strip()}"
-                        sentences[-1] = (merged_sentence, prev_start_time, sentence_end_time)
+                        merge_sentences = False
 
                     current_sentence = ''
                     if current_word_index < len(source_words):
-                        sentence_start_time = seg['end']
+                        sentence_start_time = word_end_time
             else:
-                current_sentence += seg_word + ' '
+                found_next_word = False
+                for i, upcoming_word in enumerate(source_words[current_word_index+1:]):
+                    if seg_word == upcoming_word:
+                        found_next_word = True
+                        current_word_index += i + 1
+                        break
+
+                if not found_next_word:
+                    current_sentence += seg_word + ' '
     return sentences
 
-def transcribeAudio() -> None:
+def transcribe_speaker_file(audio_file_path: str) -> dict:
+    model = whisper.load_model("medium")
+    print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
-    model = whisper.load_model("large")
+    result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
+    print("Audio file transcribed in {:.2f} seconds".format(time.time() - start_time))
 
-    for audio_file_path in glob.glob(os.path.join(".", "*.wav")):
-        print("Transcribing audio file:", audio_file_path)
-        result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=True)
-        print("Audio file transcribed in {:.2f} seconds".format(time.time() - start_time))
+    # Write result to file
+    audio_file_name = os.path.splitext(os.path.basename(audio_file_path))[0]
+    result_file_path = os.path.join(audio_file_name + "_result.txt")
+    with open(result_file_path, "w", encoding="utf-8") as f:
+        f.write(str(result))
+
+    return result
+
+def create_output_directories(audio_file_name: str) -> str:
+    output_dir = os.path.join(audio_file_name + "_segments")
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "wavs"), exist_ok=True)
+    return output_dir
+
+def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, buffer_ms: int = 50) -> None:
+    print("Splitting audio file into segments based on sentences")
+    audio = AudioSegment.from_file(audio_file_path, format='wav')
+    for i, sentence in enumerate(sentences):
+        sentence_text, start_time, end_time = sentence
+        output_file_path = os.path.join(output_dir, "wavs", str(i+1) + ".wav")
+        start_ms = int(start_time * 1000)
+        end_ms = int(end_time * 1000) + buffer_ms  # Add buffer
+        segment = audio[start_ms:end_ms]
+        segment.export(output_file_path, format="wav")
+
+def transcribe_audio() -> None:
+    start_time = time.time()
+
+    for audio_file_path in glob.glob(os.path.join(".", "SPEAKER_*.wav")):
+        result = transcribe_speaker_file(audio_file_path)
 
         audio_file_name = os.path.splitext(os.path.basename(audio_file_path))[0]
-        output_dir = audio_file_name + "_segments"
-        os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(os.path.join(output_dir, "wavs"), exist_ok=True)
-        write_sentences_to_file(extract_sentences(result), os.path.join(output_dir, "train.txt"))
+        output_dir = create_output_directories(audio_file_name)
 
-        print("Splitting audio file into segments based on sentences")
         sentences = extract_sentences(result)
-        for i, sentence in enumerate(sentences):
-            sentence_text, start_time, end_time = sentence
-            output_file_path = os.path.join(output_dir, "wavs", str(i+1) + ".wav")
-            split_audio_file(audio_file_path, output_file_path, start_time, end_time)
+        write_sentences_to_file(sentences, os.path.join(output_dir, "train.txt"))
+
+        split_audio_into_segments(audio_file_path, sentences, output_dir)
+
         print("Audio file split into segments in {:.2f} seconds".format(time.time() - start_time))
 
-        # Remove the original audio file
+    # Remove diarized long files after transcription is complete
+    for audio_file_path in glob.glob(os.path.join(".", "SPEAKER_*.wav")):
         os.remove(audio_file_path)
 
 def write_sentences_to_file(sentences: List[Tuple[str, float, float]], output_file_path: str) -> None:
     with open(output_file_path, 'w') as f:
         for i, sentence in enumerate(sentences):
             sentence_text, start_time, end_time = sentence
-            output_file_name = f"{i+1}.wav"
+            output_file_name = str(i+1) + ".wav"
+            sentence_text = sentence_text.replace('\n', ' ')
             f.write(f"wavs/{output_file_name}|{sentence_text}\n")
 
-def split_audio_file(input_file_path: str, output_file_path: str, start_time: float, end_time: float) -> None:
-    buffer_duration_ms = 150
-    audio = AudioSegment.from_file(input_file_path, format='wav')
-    start_ms = int(start_time * 1000)
-    end_ms = int(end_time * 1000) + buffer_duration_ms
-    segment = audio[start_ms:end_ms]
-    segment.export(output_file_path, format="wav")
-  
-def extractAudioFromYouTube(youtubeVideoURL: str) -> None:
+def extract_audio_from_youtube(youtube_video_url: str) -> None:
     print("Extracting audio from YouTube video")
-    audioDownloadOptions = {
-        "format": "bestaudio/best",  # Choose the best audio quality available
-        "outtmpl": "audio.%(ext)s",  # Set the output file name format
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",  # Extract audio using FFmpeg
-            "preferredcodec": "wav",  # Convert audio to WAV format
-        }]
+    audio_download_options = {
+    "format": "bestaudio/best", # Choose the best audio quality available
+    "outtmpl": "audio.%(ext)s", # Set the output file name format
+    "postprocessors": [{
+    "key": "FFmpegExtractAudio", # Extract audio using FFmpeg
+    "preferredcodec": "wav", # Convert audio to WAV format
+    }]
     }
     try:
-        with yt_dlp.YoutubeDL(audioDownloadOptions) as youtubeDownloader:
-            youtubeDownloader.download([youtubeVideoURL])
+        with yt_dlp.YoutubeDL(audio_download_options) as youtube_downloader:
+            youtube_downloader.download([youtube_video_url])
     except yt_dlp.utils.DownloadError as e:
         print(f"Error: {str(e)}")
 
 def main():
-    extractAudioFromYouTube(os.getenv('YOUTUBE_URL'))
+    extract_audio_from_youtube(os.getenv('YOUTUBE_URL'))
     start_time = time.time()
     raw_audio_duration = len(load_audio(os.getenv('AUDIO_FILE_PATH'))) / 1000
-    diarizeAudio(os.getenv('AUDIO_FILE_PATH'))
-    os.remove(os.getenv('AUDIO_FILE_PATH'))
-    transcribeAudio()
+    diarize_audio(os.getenv('AUDIO_FILE_PATH'))
+    transcribe_audio()
+
+    # Remove diarized long files after transcription is complete
+    for audio_file_path in glob.glob(os.path.join(".", "*.wav")):
+        os.remove(audio_file_path)
+
     end_time = time.time()
     real_time_factor = raw_audio_duration / (end_time - start_time)
     print(f"Real time factor: {real_time_factor:.2f}x")
