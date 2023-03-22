@@ -56,6 +56,7 @@ def remove_overlapping_bits(audio: AudioSegment, overlapping_segments: Timeline)
     return non_overlapping_audio
 
 def save_cleaned_audio(audio: AudioSegment, audio_file_path: str) -> None:
+    audio = audio.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
     audio.export(audio_file_path, format="wav")
 
 def diarize_audio(audio_file_path: str, mode: str = "concatenate") -> None:
@@ -91,6 +92,7 @@ def diarize_audio(audio_file_path: str, mode: str = "concatenate") -> None:
             for i, segment in enumerate(speaker_segments):
                 start_time_ms, end_time_ms = segment
                 segment_audio = audio[start_time_ms:end_time_ms]
+                segment_audio = segment_audio.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
                 segment_audio.export(os.path.join(speaker, f"{i}.wav"), format="wav")
     elif mode == "concatenate":
         for speaker, speaker_segments in segments.items():
@@ -98,6 +100,7 @@ def diarize_audio(audio_file_path: str, mode: str = "concatenate") -> None:
             for i, segment in enumerate(speaker_segments):
                 start_time_ms, end_time_ms = segment
                 segment_audio = segment_audio + audio[start_time_ms:end_time_ms] + AudioSegment.silent(duration=2000)
+            segment_audio = segment_audio.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
             segment_audio.export(f"{speaker}.wav", format="wav")
     print(f"Total duration of audio: {len(audio) / 1000:.2f} seconds")
 
@@ -119,9 +122,8 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
             else:
                 if duration >= min_duration:
                     sentences.append((sentence.strip(), start_time, end_time))
-        else:
-            if duration >= min_duration:
-                sentences.append((sentence.strip(), start_time, end_time))
+        elif min_duration <= duration <= max_duration:
+            sentences.append((sentence.strip(), start_time, end_time))
 
     words = [(wd['word'].strip(), wd['start'], wd['end']) for seg in result['segments'] for wd in seg['words']]
     current_sentence = ''
@@ -144,7 +146,7 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
     return sentences
 
 def transcribe_speaker_file(audio_file_path: str) -> dict:
-    model = whisper.load_model("base")
+    model = whisper.load_model("medium")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
     result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
@@ -160,6 +162,13 @@ def create_output_directories(audio_file_name: str) -> str:
     os.makedirs(os.path.join(output_dir, "wavs"), exist_ok=True)
     return output_dir
 
+def detect_leading_silence(sound, silence_threshold=-50.0, chunk_size=10):
+    trim_ms = 0
+    assert chunk_size > 0
+    while sound[trim_ms:trim_ms+chunk_size].dBFS < silence_threshold and trim_ms < len(sound):
+        trim_ms += chunk_size
+    return min(trim_ms, len(sound))
+
 def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, val_indices: List[int], create_val_set: bool = True, buffer_ms: int = 100) -> None:
     print("Splitting audio file into segments based on sentences")
     audio = AudioSegment.from_file(audio_file_path, format='wav')
@@ -170,6 +179,11 @@ def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, f
         end_ms = int(end_time * 1000) + buffer_ms  # Add buffer
         segment = audio[start_ms:end_ms]
         segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
+
+        # # Remove silence at the start of the segment
+        # leading_silence_end = detect_leading_silence(segment)
+        # segment = segment[leading_silence_end:]
+
         segment.export(output_file_path, format="wav")
 
 def transcribe_audio(create_val_set: bool = True) -> None:
@@ -215,7 +229,6 @@ def write_sentences_to_file(sentences: List[Tuple[str, float, float]], train_fil
                 val_indices.append(i)
             else:
                 f_train.write(line)
-
     return val_indices
 
 def extract_audio_from_youtube(youtube_video_url: str) -> None:
