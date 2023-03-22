@@ -146,7 +146,7 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
     return sentences
 
 def transcribe_speaker_file(audio_file_path: str) -> dict:
-    model = whisper.load_model("tiny")
+    model = whisper.load_model("large")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
     result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
