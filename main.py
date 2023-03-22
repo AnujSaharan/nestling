@@ -1,5 +1,6 @@
 import os
 import glob
+import random
 import re
 import yt_dlp
 import time
@@ -143,7 +144,7 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
     return sentences
 
 def transcribe_speaker_file(audio_file_path: str) -> dict:
-    model = whisper.load_model("medium")
+    model = whisper.load_model("base")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
     result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
@@ -159,7 +160,7 @@ def create_output_directories(audio_file_name: str) -> str:
     os.makedirs(os.path.join(output_dir, "wavs"), exist_ok=True)
     return output_dir
 
-def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, buffer_ms: int = 100) -> None:
+def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, val_indices: List[int], create_val_set: bool = True, buffer_ms: int = 100) -> None:
     print("Splitting audio file into segments based on sentences")
     audio = AudioSegment.from_file(audio_file_path, format='wav')
     for i, sentence in enumerate(sentences):
@@ -168,9 +169,10 @@ def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, f
         start_ms = int(start_time * 1000)
         end_ms = int(end_time * 1000) + buffer_ms  # Add buffer
         segment = audio[start_ms:end_ms]
+        segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
         segment.export(output_file_path, format="wav")
 
-def transcribe_audio() -> None:
+def transcribe_audio(create_val_set: bool = True) -> None:
     start_time = time.time()
 
     for audio_file_path in glob.glob(os.path.join(".", "SPEAKER_*.wav")):
@@ -180,9 +182,9 @@ def transcribe_audio() -> None:
         output_dir = create_output_directories(audio_file_name)
 
         sentences = extract_sentences(result)
-        write_sentences_to_file(sentences, os.path.join(output_dir, "train.txt"))
+        val_indices = write_sentences_to_file(sentences, os.path.join(output_dir, "train.txt"), os.path.join(output_dir, "validation.txt"), create_val_set)
 
-        split_audio_into_segments(audio_file_path, sentences, output_dir)
+        split_audio_into_segments(audio_file_path, sentences, output_dir, val_indices, create_val_set)
 
         print("Audio file split into segments in {:.2f} seconds".format(time.time() - start_time))
 
@@ -190,13 +192,31 @@ def transcribe_audio() -> None:
     for audio_file_path in glob.glob(os.path.join(".", "SPEAKER_*.wav")):
         os.remove(audio_file_path)
 
-def write_sentences_to_file(sentences: List[Tuple[str, float, float]], output_file_path: str) -> None:
-    with open(output_file_path, 'w') as f:
+def write_sentences_to_file(sentences: List[Tuple[str, float, float]], train_file_path: str, val_file_path: str, create_val_set: bool = True) -> List[int]:
+    if create_val_set:
+        random.shuffle(sentences)
+        num_val = int(len(sentences) * 0.1)
+        val_sentences = sentences[:num_val]
+        train_sentences = sentences[num_val:]
+    else:
+        num_val = 0
+        train_sentences = sentences
+
+    val_indices = []
+    with open(train_file_path, 'w') as f_train, open(val_file_path, 'w') as f_val:
         for i, sentence in enumerate(sentences):
             sentence_text, start_time, end_time = sentence
             output_file_name = str(i+1) + ".wav"
             sentence_text = sentence_text.replace('\n', ' ')
-            f.write(f"wavs/{output_file_name}|{sentence_text}\n")
+            line = f"wavs/{output_file_name}|{sentence_text}\n"
+            
+            if create_val_set and i < num_val:
+                f_val.write(line)
+                val_indices.append(i)
+            else:
+                f_train.write(line)
+
+    return val_indices
 
 def extract_audio_from_youtube(youtube_video_url: str) -> None:
     print("Extracting audio from YouTube video")
