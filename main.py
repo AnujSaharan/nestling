@@ -146,7 +146,7 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
     return sentences
 
 def transcribe_speaker_file(audio_file_path: str) -> dict:
-    model = whisper.load_model("medium")
+    model = whisper.load_model("tiny")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
     result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
@@ -222,13 +222,16 @@ def write_sentences_to_file(sentences: List[Tuple[str, float, float]], train_fil
             sentence_text, start_time, end_time = sentence
             output_file_name = str(i+1) + ".wav"
             sentence_text = sentence_text.replace('\n', ' ')
-            line = f"wavs/{output_file_name}|{sentence_text}\n"
+            line = f"wavs/{output_file_name}|{sentence_text}"
             
             if create_val_set and i < num_val:
-                f_val.write(line)
+                f_val.write(line + '\n')
                 val_indices.append(i)
             else:
-                f_train.write(line)
+                if i == len(sentences) - 1:
+                    f_train.write(line)
+                else:
+                    f_train.write(line + '\n')
     return val_indices
 
 def extract_audio_from_youtube(youtube_video_url: str) -> None:
