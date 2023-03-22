@@ -1,0 +1,3 @@
+wavs/1.wav|How have you insulated against geopolitical risks of the region in the case that the Silicon Shield doesn't hold?
+wavs/2.wav|I assume you're talking about the moment with AlexNet and Kuda powering that and sort of the big bang of AI, if you will. I'm curious how much of that you feel like was luck. I mean, what you're talking about is it finding you.
+wavs/3.wav|Can you just give a very simple list of some of the use cases and big name customers that people might be surprised to hear are powered by NVIDIA?

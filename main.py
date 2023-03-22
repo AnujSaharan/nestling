@@ -146,7 +146,7 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
     return sentences
 
 def transcribe_speaker_file(audio_file_path: str) -> dict:
-    model = whisper.load_model("large")
+    model = whisper.load_model("small")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
     result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
@@ -181,8 +181,8 @@ def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, f
         segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
 
         # # Remove silence at the start of the segment
-        # leading_silence_end = detect_leading_silence(segment)
-        # segment = segment[leading_silence_end:]
+        leading_silence_end = detect_leading_silence(segment)
+        segment = segment[leading_silence_end:]
 
         segment.export(output_file_path, format="wav")
 

@@ -1,0 +1,22 @@
+wavs/1.wav|There will be a robotics foundation model, there will be foundation models for science, for finance, for all kinds of different applications in different industries in different countries.
+wavs/2.wav|The chip shortage was a strange one. On the one hand, there was chip shortage.
+wavs/3.wav|We selected computer graphics and video games as our first market combination, technology, market, product, technology, and market combination.
+wavs/4.wav|And we step by step added more and more things that we could do to today, artificial intelligence.
+wavs/5.wav|You would like the data center even more so because it costs billions of dollars.
+wavs/6.wav|And then it populates these AI supercomputer data centers, and when you train a large language model, let's say it costs $10 million.
+wavs/7.wav|And going forward, I think it's starting to ease up now.
+wavs/8.wav|Not only was it a giant breakthrough in computer vision, it was also a profoundly new way of doing software.
+wavs/9.wav|That way of using experience or data to cause a software to be able to make future predictions was so profound and we had the good wisdom to go put the whole company behind it.
+wavs/10.wav|And so I think this is really genuinely the first time in my generation that we've created something, or contributed to create something, that made our technology accessible to everyone.
+wavs/11.wav|What NVIDIA does is a general purpose accelerated computing platform.
+wavs/12.wav|Technology is incredible in the sense that such enormous challenges and problems could be solved by computing on the one hand. On the other hand, the technology changes.
+wavs/13.wav|Our entire software stack was invented for our AI.
+wavs/14.wav|You know, this is one of the things that's really amazing about a computing platform.
+wavs/15.wav|And you can see in the recent trends, it's growing very quickly. And that's a real issue for the world.
+wavs/16.wav|From the very first day I saw them, they were dedicated to wanting to do this. And they've been focused on it for five years.
+wavs/17.wav|It represents probably the single greatest container of all of NVIDIA's technology, computer graphics, artificial intelligence, robotics and physics simulation, all into one. I have great hopes for it.
+wavs/18.wav|We did some of our best work ever in the history of our company.
+wavs/19.wav|And in our case, accelerated computing makes it possible for you to solve problems that were impossible before.
+wavs/20.wav|And so I'm really, really pleased with the company and the work that everybody's done.
+wavs/21.wav|Our company, whether it's just fine, we're strong and resilient company.
+wavs/22.wav|During my generation, the way that you program a computer was started with basic, and I learned Fortran, and you learned C, and then you moved to C++ and Java, and now Python.

@@ -1,0 +1,33 @@
+wavs/4.wav|Can you talk to me about some of the biggest stumbles that you've had to overcome in the years?
+wavs/5.wav|About a quarter of your revenue comes from mainland China. How do you calm investor fears over the new export controls?
+wavs/6.wav|You know, speaking about Google's TPUs and Amazon has their own chips as well. How do you stay ahead in that landscape?
+wavs/7.wav|Do you think that your products, Nvidia, is at the very center of this and has become the must have products to power this next big step?
+wavs/8.wav|You are famous for reinvention. What's the next one going to be?
+wavs/9.wav|There are always skeptics and people who are alarmed, perhaps, by how fast AI is taking off and how powerful it's become.
+wavs/10.wav|How do you think it'll really take off if only a couple big companies have true access to do it at scale?
+wavs/11.wav|The vast majority of your chips are made by TSMC.
+wavs/12.wav|In the early days at Denny's with Chris and Curtis, the dream was probably simpler.
+wavs/13.wav|With capabilities like Deepfake's eye contact, for instance, that I've seen an example of, what do you say to them?
+wavs/14.wav|It hasn't always been success.
+wavs/15.wav|But first I wanted to ask you about betting it all.
+wavs/16.wav|Can you explain what your first dream was, what the vision was, even though now it's come so far to be this accelerated computing company?
+wavs/17.wav|What do you say to gamers who wish you had kept focus entirely on the core business of gaming?
+wavs/18.wav|Experts seem to say the worst of the chip shortage is over. How did Nvidia weather that storm?
+wavs/19.wav|Here in Silicon Valley, there's a bunch of CEOs and founders who've started bringing up the A100 and kind of publicly competing with each other about who bought more, when and who saw this coming.
+wavs/20.wav|Beyond gaming and graphics, it has grown immensely.
+wavs/21.wav|Right now, generative AI is still extremely expensive to accomplish.
+wavs/22.wav|How do you stay ahead in an industry where some of your customers could become your competitors?
+wavs/23.wav|Just a couple questions about the state of the industry.
+wavs/24.wav|Most founders would be very satisfied being at the helm of such a huge industry with gaming graphics.
+wavs/25.wav|But I think chips have been in the ecosystem a lot more lately.
+wavs/26.wav|This is the last one just on a personal note. You are the longest running tech CEO. Is there any end in sight? You
+wavs/27.wav|I'm going to come back to chat GPT for sure.
+wavs/28.wav|And now here we are and OpenAI has taken the world by storm.
+wavs/29.wav|And there's people who probably didn't even really know what a semiconductor was a few years ago.
+wavs/30.wav|It was maybe seven times that you've been reinvented and faced, you know, success or utter failure. What is the lesson here?
+wavs/31.wav|What signaled to you and when that it wasn't enough?
+wavs/32.wav|And I want to get started just with a question that is really basic.
+wavs/33.wav|Can you give me a very basic definition of what NVIDIA is?
+wavs/34.wav|This is something that you have not shied away from in the 30 years that since you started the company.
+wavs/35.wav|I think that there's a lot of things people might be surprised to hear are powered by NVIDIA.
+wavs/36.wav|It's sort of competing for bragging rights around the A100. What would you want to say to them?
