@@ -5,16 +5,49 @@ import re
 import yt_dlp
 import time
 import whisper
+import numpy as np
 from dotenv import load_dotenv
 from typing import List, Tuple
 from pyannote.audio import Pipeline
 from pyannote.core import Timeline
 from pydub import AudioSegment
+from pydub.effects import normalize
+from pydub.effects import compress_dynamic_range as compressor
+from scipy.signal import butter, lfilter
 
 load_dotenv()  # Load environment variables from .env
 
 def load_audio(audio_file_path: str) -> AudioSegment:
     return AudioSegment.from_wav(audio_file_path)
+
+def apply_compression(audio: AudioSegment, threshold=-20.0, ratio=4.0, attack=5.0, release=50.0) -> AudioSegment:
+    return compressor(audio, threshold=threshold, ratio=ratio, attack=attack, release=release)
+
+def butter_highpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    return b, a
+
+def highpass_filter(data, cutoff, fs, order=5):
+    b, a = butter_highpass(cutoff, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
+
+
+def apply_highpass_filter(audio: AudioSegment, cutoff=100) -> AudioSegment:
+    audio_np = np.array(audio.get_array_of_samples()).astype(float)
+    filtered_audio_np = highpass_filter(audio_np, cutoff, audio.frame_rate)
+
+    # Cast the filtered NumPy array back to the original data type
+    filtered_audio_np = filtered_audio_np.astype(audio.array_type)
+
+    return AudioSegment(
+        filtered_audio_np.tobytes(),
+        frame_rate=audio.frame_rate,
+        sample_width=audio.sample_width,
+        channels=audio.channels,
+    )
 
 def detect_overlapping_speech(audio_file_path: str) -> Timeline:
     print("Detecting overlapping speech")
@@ -146,7 +179,7 @@ def extract_sentences(result: dict) -> List[Tuple[str, float, float]]:
     return sentences
 
 def transcribe_speaker_file(audio_file_path: str) -> dict:
-    model = whisper.load_model("small")
+    model = whisper.load_model("medium")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
     result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
@@ -183,6 +216,8 @@ def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, f
         # # Remove silence at the start of the segment
         leading_silence_end = detect_leading_silence(segment)
         segment = segment[leading_silence_end:]
+        segment = apply_compression(segment)
+        segment = apply_highpass_filter(segment)
 
         segment.export(output_file_path, format="wav")
 
@@ -234,24 +269,49 @@ def write_sentences_to_file(sentences: List[Tuple[str, float, float]], train_fil
                     f_train.write(line + '\n')
     return val_indices
 
-def extract_audio_from_youtube(youtube_video_url: str) -> None:
-    print("Extracting audio from YouTube video")
+
+def extract_audio_from_youtube(youtube_video_urls: List[str]) -> None:
+    print("Extracting audio from YouTube videos")
+
     audio_download_options = {
-    "format": "bestaudio/best", # Choose the best audio quality available
-    "outtmpl": "audio.%(ext)s", # Set the output file name format
-    "postprocessors": [{
-    "key": "FFmpegExtractAudio", # Extract audio using FFmpeg
-    "preferredcodec": "wav", # Convert audio to WAV format
-    }]
+        "format": "bestaudio/best",  # Choose the best audio quality available
+        "outtmpl": "audio%(num)s.%(ext)s",  # Set the output file name format
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",  # Extract audio using FFmpeg
+            "preferredcodec": "wav",  # Convert audio to WAV format
+        }]
     }
-    try:
-        with yt_dlp.YoutubeDL(audio_download_options) as youtube_downloader:
-            youtube_downloader.download([youtube_video_url])
-    except yt_dlp.utils.DownloadError as e:
-        print(f"Error: {str(e)}")
+
+    final_audio = None
+
+    for index, youtube_video_url in enumerate(youtube_video_urls):
+        audio_download_options["outtmpl"] = f"audio{index}.%(ext)s"
+
+        try:
+            with yt_dlp.YoutubeDL(audio_download_options) as youtube_downloader:
+                youtube_downloader.download([youtube_video_url])
+
+            current_audio = AudioSegment.from_wav(f"audio{index}.wav")
+            normalized_audio = normalize(current_audio)  # Normalize the audio
+
+            if final_audio is None:
+                final_audio = normalized_audio
+            else:
+                final_audio = final_audio + normalized_audio
+
+            os.remove(f"audio{index}.wav")
+
+        except yt_dlp.utils.DownloadError as e:
+            print(f"Error: {str(e)}")
+
+    if final_audio is not None:
+        final_audio.export("audio.wav", format="wav")
+        print("All audio files concatenated and saved as audio.wav")
 
 def main():
-    extract_audio_from_youtube(os.getenv('YOUTUBE_URL'))
+    youtube_urls_str = os.getenv('YOUTUBE_URLS')
+    youtube_urls = youtube_urls_str.split(',')
+    extract_audio_from_youtube(youtube_urls)
     start_time = time.time()
     raw_audio_duration = len(load_audio(os.getenv('AUDIO_FILE_PATH'))) / 1000
     diarize_audio(os.getenv('AUDIO_FILE_PATH'))
