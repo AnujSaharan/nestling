@@ -1,5 +1,0 @@
-wavs/1.wav|Like if we dip below a certain line and stay down there we can't survive. Everybody's gonna have that.
-wavs/2.wav|for this show the ethics of potentially covering that topic.
-wavs/3.wav|What if something happens on a late night on a WAN show?
-wavs/4.wav|We also try to, we are a large company with people that have scheduled hours, so like people don't work weekends. What if something happens on a weekend? We simply cannot deal with it.
-wavs/5.wav|We might get less coverage of that thing than other people because those people make reaction content to it and then we don't make anything about it until Monday because people are off on the weekends.
