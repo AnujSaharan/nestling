@@ -182,7 +182,7 @@ def transcribe_speaker_file(audio_file_path: str) -> dict:
     model = whisper.load_model("medium")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
-    result = model.transcribe(audio_file_path, word_timestamps=True, language="en", verbose=False)
+    result = model.transcribe(audio_file_path, word_timestamps=True, verbose=False, initial_prompt="")
     print("Audio file transcribed in {:.2f} seconds".format(time.time() - start_time))
 
     # Write result to file
@@ -205,12 +205,14 @@ def detect_leading_silence(sound, silence_threshold=-50.0, chunk_size=10):
 def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, val_indices: List[int], create_val_set: bool = True, buffer_ms: int = 100) -> None:
     print("Splitting audio file into segments based on sentences")
     audio = AudioSegment.from_file(audio_file_path, format='wav')
+    total_duration = 0
     for i, sentence in enumerate(sentences):
         sentence_text, start_time, end_time = sentence
         output_file_path = os.path.join(output_dir, "wavs", str(i+1) + ".wav")
         start_ms = int(start_time * 1000)
         end_ms = int(end_time * 1000) + buffer_ms  # Add buffer
         segment = audio[start_ms:end_ms]
+        total_duration += len(segment)
         segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
 
         # # Remove silence at the start of the segment
@@ -220,11 +222,15 @@ def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, f
         segment = apply_highpass_filter(segment)
 
         segment.export(output_file_path, format="wav")
+    return total_duration / 1000
 
 def transcribe_audio(create_val_set: bool = True) -> None:
     start_time = time.time()
 
     for audio_file_path in glob.glob(os.path.join(".", "SPEAKER_*.wav")):
+        original_duration = AudioSegment.from_wav(audio_file_path).duration_seconds
+        print(f"Original duration of {os.path.basename(audio_file_path)}: {original_duration:.2f} seconds")
+
         result = transcribe_speaker_file(audio_file_path)
 
         audio_file_name = os.path.splitext(os.path.basename(audio_file_path))[0]
@@ -235,7 +241,14 @@ def transcribe_audio(create_val_set: bool = True) -> None:
 
         split_audio_into_segments(audio_file_path, sentences, output_dir, val_indices, create_val_set)
 
-        print("Audio file split into segments in {:.2f} seconds".format(time.time() - start_time))
+        # Calculate combined duration of the speaker segments
+        segments_duration = 0
+        for segment_path in glob.glob(os.path.join(output_dir, "wavs", "*.wav")):
+            segment_audio = AudioSegment.from_wav(segment_path)
+            segments_duration += segment_audio.duration_seconds
+        
+        print(f"Combined duration of {os.path.basename(audio_file_path)} segments: {segments_duration:.2f} seconds")
+        print(f"Audio file split into segments in {time.time() - start_time:.2f} seconds")
 
     # Remove diarized long files after transcription is complete
     for audio_file_path in glob.glob(os.path.join(".", "SPEAKER_*.wav")):
