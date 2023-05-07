@@ -205,6 +205,7 @@ def detect_leading_silence(sound, silence_threshold=-50.0, chunk_size=10):
 def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, val_indices: List[int], create_val_set: bool = True, buffer_ms: int = 100) -> None:
     print("Splitting audio file into segments based on sentences")
     audio = AudioSegment.from_file(audio_file_path, format='wav')
+    audio = audio.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
     total_duration = 0
     for i, sentence in enumerate(sentences):
         sentence_text, start_time, end_time = sentence
@@ -213,7 +214,7 @@ def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, f
         end_ms = int(end_time * 1000) + buffer_ms  # Add buffer
         segment = audio[start_ms:end_ms]
         total_duration += len(segment)
-        segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
+        #segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
 
         # # Remove silence at the start of the segment
         leading_silence_end = detect_leading_silence(segment)
