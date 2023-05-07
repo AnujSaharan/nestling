@@ -1,0 +1,8 @@
+wavs/1.wav|Hyperlinking will evolve into hyperjumping between 3D worlds.
+wavs/2.wav|And this is done one application domain at a time.
+wavs/3.wav|They're already here.
+wavs/4.wav|Rev will share our work and collaboration with the industry to advance USD.
+wavs/5.wav|And as with the Internet, the metaverse is a computing platform that requires a new programming model, a new computing architecture and new standards.
+wavs/6.wav|RTX, the fusion of programmable shading, ray tracing, and AI has started the next era.
+wavs/7.wav|Ian Buck will announce next generation data center platforms.
+wavs/8.wav|Help you find something on a website, take your order at a drive -thru, or recommend a retirement or insurance plan.

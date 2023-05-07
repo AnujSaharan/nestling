@@ -184,7 +184,20 @@ def transcribe_speaker_file(audio_file_path: str) -> dict:
     model = whisper.load_model("medium")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
-    result = model.transcribe(audio_file_path, word_timestamps=True, verbose=False, language = "en", initial_prompt="NVIDIA Omniverse is a USD platform, a toolkit for building metaverse applications. We are building the Omniverse platform to enable 3D collaboration. Robotics is the wave of AI that's upcoming.")
+    
+    result = model.transcribe(
+        audio_file_path,
+        word_timestamps=True,
+        verbose=False,
+        language="en",
+        initial_prompt="NVIDIA Omniverse is a USD platform, a toolkit for building metaverse applications. We are building the Omniverse platform to enable 3D collaboration. Robotics is the wave of AI that's upcoming.",
+        condition_on_previous_text=False,
+        temperature=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
+        compression_ratio_threshold=2.4,
+        logprob_threshold=-1.0,
+        no_speech_threshold=0.6,
+    )
+    
     print("Audio file transcribed in {:.2f} seconds".format(time.time() - start_time))
 
     # Write result to file
