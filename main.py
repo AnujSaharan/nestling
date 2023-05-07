@@ -195,12 +195,19 @@ def create_output_directories(audio_file_name: str) -> str:
     os.makedirs(os.path.join(output_dir, "wavs"), exist_ok=True)
     return output_dir
 
-def detect_leading_silence(sound, silence_threshold=-50.0, chunk_size=10):
+def detect_silence(sound, position='leading', silence_threshold=-50.0, chunk_size=10):
     trim_ms = 0
     assert chunk_size > 0
-    while sound[trim_ms:trim_ms+chunk_size].dBFS < silence_threshold and trim_ms < len(sound):
-        trim_ms += chunk_size
-    return min(trim_ms, len(sound))
+    audio_len = len(sound)
+    
+    if position == 'leading':
+        while sound[trim_ms:trim_ms + chunk_size].dBFS < silence_threshold and trim_ms < audio_len:
+            trim_ms += chunk_size
+    elif position == 'trailing':
+        while sound[-trim_ms - chunk_size:-trim_ms].dBFS < silence_threshold and trim_ms < audio_len:
+            trim_ms += chunk_size
+
+    return min(trim_ms, audio_len)
 
 def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, val_indices: List[int], create_val_set: bool = True, buffer_ms: int = 100) -> None:
     print("Splitting audio file into segments based on sentences")
@@ -217,8 +224,9 @@ def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, f
         #segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
 
         # # Remove silence at the start of the segment
-        leading_silence_end = detect_leading_silence(segment)
-        segment = segment[leading_silence_end:]
+        leading_silence_end = detect_silence(segment, position='leading')
+        trailing_silence_start = detect_silence(segment, position='trailing')
+        segment = segment[leading_silence_end:len(segment) - trailing_silence_start]
         segment = apply_compression(segment)
         segment = apply_highpass_filter(segment)
 
