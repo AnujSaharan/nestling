@@ -14,6 +14,8 @@ from pydub import AudioSegment
 from pydub.effects import normalize
 from pydub.effects import compress_dynamic_range as compressor
 from scipy.signal import butter, lfilter
+from concurrent.futures import ThreadPoolExecutor
+
 
 load_dotenv()  # Load environment variables from .env
 
@@ -182,7 +184,7 @@ def transcribe_speaker_file(audio_file_path: str) -> dict:
     model = whisper.load_model("medium")
     print("Transcribing audio file:", audio_file_path)
     start_time = time.time()
-    result = model.transcribe(audio_file_path, word_timestamps=True, verbose=False, initial_prompt="NVIDIA Omniverse is a USD platform, a toolkit for building metaverse applications. We are building the Omniverse platform to enable 3D collaboration. Robotics is the wave of AI that's upcoming.")
+    result = model.transcribe(audio_file_path, word_timestamps=True, verbose=False, language = "en", initial_prompt="NVIDIA Omniverse is a USD platform, a toolkit for building metaverse applications. We are building the Omniverse platform to enable 3D collaboration. Robotics is the wave of AI that's upcoming.")
     print("Audio file transcribed in {:.2f} seconds".format(time.time() - start_time))
 
     # Write result to file
@@ -209,28 +211,44 @@ def detect_silence(sound, position='leading', silence_threshold=-50.0, chunk_siz
 
     return min(trim_ms, audio_len)
 
-def split_audio_into_segments(audio_file_path: str, sentences: List[Tuple[str, float, float]], output_dir: str, val_indices: List[int], create_val_set: bool = True, buffer_ms: int = 100) -> None:
+def process_audio_segment(segment: AudioSegment) -> AudioSegment:
+    segment = apply_compression(segment)
+    segment = apply_highpass_filter(segment)
+    return segment
+
+
+def process_and_export_audio_segment(i, segment, output_dir):
+    segment = process_audio_segment(segment)
+    output_file_path = os.path.join(output_dir, "wavs", str(i + 1) + ".wav")
+    segment.export(output_file_path, format="wav")
+
+
+def split_audio_into_segments(audio: AudioSegment, sentences: List[Tuple[str, float, float]], output_dir: str, val_indices: List[int], create_val_set: bool = True, buffer_ms: int = 100) -> None:
     print("Splitting audio file into segments based on sentences")
-    audio = AudioSegment.from_file(audio_file_path, format='wav')
-    audio = audio.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
+    audio = audio.set_channels(1).set_frame_rate(
+        22050)  # Set to mono and 22050Hz
     total_duration = 0
+    segments = []
     for i, sentence in enumerate(sentences):
         sentence_text, start_time, end_time = sentence
-        output_file_path = os.path.join(output_dir, "wavs", str(i+1) + ".wav")
         start_ms = int(start_time * 1000)
         end_ms = int(end_time * 1000) + buffer_ms  # Add buffer
         segment = audio[start_ms:end_ms]
         total_duration += len(segment)
-        #segment = segment.set_channels(1).set_frame_rate(22050)  # Set to mono and 22050Hz
 
-        # # Remove silence at the start of the segment
+        # Remove silence at the start of the segment
         leading_silence_end = detect_silence(segment, position='leading')
         trailing_silence_start = detect_silence(segment, position='trailing')
-        segment = segment[leading_silence_end:len(segment) - trailing_silence_start]
-        segment = apply_compression(segment)
-        segment = apply_highpass_filter(segment)
+        segment = segment[leading_silence_end:len(
+            segment) - trailing_silence_start]
 
-        segment.export(output_file_path, format="wav")
+        segments.append(segment)
+
+    # Parallelize the processing and export of audio segments
+    with ThreadPoolExecutor() as executor:
+        executor.map(process_and_export_audio_segment, range(
+            len(segments)), segments, [output_dir] * len(segments))
+
     return total_duration / 1000
 
 def transcribe_audio(create_val_set: bool = True) -> None:
@@ -248,7 +266,8 @@ def transcribe_audio(create_val_set: bool = True) -> None:
         sentences = extract_sentences(result)
         val_indices = write_sentences_to_file(sentences, os.path.join(output_dir, "train.txt"), os.path.join(output_dir, "validation.txt"), create_val_set)
 
-        split_audio_into_segments(audio_file_path, sentences, output_dir, val_indices, create_val_set)
+        audio = AudioSegment.from_file(audio_file_path)
+        split_audio_into_segments(audio, sentences, output_dir, val_indices, create_val_set)
 
         # Calculate combined duration of the speaker segments
         segments_duration = 0
