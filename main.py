@@ -365,7 +365,7 @@ def extract_audio_from_youtube(youtube_video_urls: List[str]) -> None:
 def main():
     youtube_urls_str = os.getenv('YOUTUBE_URLS')
     youtube_urls = youtube_urls_str.split(',')
-    extract_audio_from_youtube(youtube_urls)
+    # extract_audio_from_youtube(youtube_urls)
     start_time = time.time()
     raw_audio_duration = len(load_audio(os.getenv('AUDIO_FILE_PATH'))) / 1000
     diarize_audio(os.getenv('AUDIO_FILE_PATH'))
